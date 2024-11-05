@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fight Night Manager</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+        }
+        .container {
+            width: 80%;
+            margin: 0 auto;
+        }
+        h2 {
+            color: #333;
+        }
+        .section {
+            background-color: #fff;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        label, input, select, textarea, button {
+            display: block;
+            margin: 10px 0;
+            font-size: 16px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 10px;
+            border: 1px solid #ddd;
+            text-align: center;
+        }
+        .admin-controls {
+            display: none;
+        }
+        #logoutButton {
+            display: none;
+        }
+    </style>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-firestore.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Fight Night Manager</h1>
+
+        <!-- Admin Login and Logout -->
+        <button id="loginButton" onclick="loginAsAdmin()">Login as Admin</button>
+        <button id="logoutButton" onclick="logoutAsAdmin()">Logout</button>
+
+        <!-- Fighters Section -->
+        <div class="section">
+            <h2>Manage Fighters</h2>
+            <form id="fighterForm" class="admin-controls">
+                <label>Fighter Name:</label>
+                <input type="text" id="fighterName" required>
+
+                <label>Weight Class:</label>
+                <select id="weightClass">
+                    <option value="Featherweight">Featherweight</option>
+                    <option value="Lightweight">Lightweight</option>
+                    <option value="Heavyweight">Heavyweight</option>
+                </select>
+
+                <label>Weight (lbs):</label>
+                <input type="number" id="weight" min="0" required>
+
+                <label>Wins:</label>
+                <input type="number" id="wins" min="0" required>
+
+                <label>Losses:</label>
+                <input type="number" id="losses" min="0" required>
+
+                <label>Notes:</label>
+                <textarea id="notes"></textarea>
+
+                <button type="button" onclick="addFighter()">Add Fighter</button>
+            </form>
+
+            <h3>Fighter List</h3>
+            <div>
+                <h4>Featherweight</h4>
+                <table id="featherweightTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Weight (lbs)</th>
+                            <th>Record (W-L)</th>
+                            <th>Notes</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+
+                <h4>Lightweight</h4>
+                <table id="lightweightTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Weight (lbs)</th>
+                            <th>Record (W-L)</th>
+                            <th>Notes</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+
+                <h4>Heavyweight</h4>
+                <table id="heavyweightTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Weight (lbs)</th>
+                            <th>Record (W-L)</th>
+                            <th>Notes</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Fight Night Section -->
+        <div class="section">
+            <h2>Plan Fight Night</h2>
+            <form id="fightNightForm" class="admin-controls">
+                <label>Week (YYYY-MM-DD to YYYY-MM-DD):</label>
+                <input type="week" id="eventWeek" required>
+
+                <label>Fighter 1:</label>
+                <select id="fighter1"></select>
+
+                <label>Fighter 2:</label>
+                <select id="fighter2"></select>
+
+                <button type="button" onclick="addFightNight()">Add Fight</button>
+            </form>
+
+            <h3>Fight Night Schedule by Week</h3>
+            <div id="fightNightList">
+                <!-- Fight nights by week will be listed here dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyCAds05FneztQmNLZ9XBAZYO7efVt5P2lg",
+            authDomain: "fight-night-manager.firebaseapp.com",
+            projectId: "fight-night-manager",
+            storageBucket: "fight-night-manager.appspot.com",
+            messagingSenderId: "128884772905",
+            appId: "1:128884772905:web:c89a15ca596f273ef44c38",
+            measurementId: "G-N9D47F76L0"
+        };
+
+        // Initialize Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // Define variables
+        const fighters = [];
+        const fightNights = {};
+        const adminPassword = "your_secure_password"; // Set your password here
+        let isAdmin = false;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            // Call functions on page load to populate data
+            renderFighters();
+            populateFighterOptions();
+            renderFightNights();
+        });
+
+        // Admin login function
+        function loginAsAdmin() {
+            const password = prompt("Enter admin password:");
+            if (password === adminPassword) {
+                isAdmin = true;
+                document.querySelectorAll('.admin-controls').forEach(el => el.style.display = 'block');
+                document.getElementById('loginButton').style.display = 'none';
+                document.getElementById('logoutButton').style.display = 'block';
+                renderFighters();
+                renderFightNights();
+            } else {
+                alert("Incorrect password.");
+            }
+        }
+
+        // Admin logout function
+        function logoutAsAdmin() {
+            isAdmin = false;
+            document.querySelectorAll('.admin-controls').forEach(el => el.style.display = 'none');
+            document.getElementById('loginButton').style.display = 'block';
+            document.getElementById('logoutButton').style.display = 'none';
+            renderFighters();
+            renderFightNights();
+        }
+
+        // Function to add fighter
+        function addFighter() {
+            const name = document.getElementById('fighterName').value;
+            const weightClass = document.getElementById('weightClass').value;
+            const weight = parseInt(document.getElementById('weight').value);
+            const wins = parseInt(document.getElementById('wins').value);
+            const losses = parseInt(document.getElementById('losses').value);
+            const notes = document.getElementById('notes').value;
+
+            const fighter = { name, weightClass, weight, wins, losses, notes };
+            db.collection('fighters').add(fighter)
+                .then(() => {
+                    alert("Fighter added successfully!");
+                    renderFighters();
+                    populateFighterOptions();
+                    document.getElementById('fighterForm').reset();
+                })
+                .catch((error) => {
+                    console.error("Error adding fighter: ", error);
+                });
+        }
+
+        // Function to render fighters from Firestore
+        function renderFighters() {
+            const featherweightTable = document.getElementById('featherweightTable').querySelector('tbody');
+            const lightweightTable = document.getElementById('lightweightTable').querySelector('tbody');
+            const heavyweightTable = document.getElementById('heavyweightTable').querySelector('tbody');
+
+            featherweightTable.innerHTML = '';
+            lightweightTable.innerHTML = '';
+            heavyweightTable.innerHTML = '';
+
+            db.collection('fighters').get().then((querySnapshot) => {
+                querySnapshot.forEach((doc) => {
+                    const fighter = doc.data();
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${fighter.name}</td>
+                        <td>${fighter.weight} lbs</td>
+                        <td>${fighter.wins} - ${fighter.losses}</td>
+                        <td>${fighter.notes}</td>
+                        <td><button onclick="deleteFighter('${doc.id}')">Delete</button></td>
+                    `;
+                    if (fighter.weightClass === 'Featherweight') {
+                        featherweightTable.appendChild(row);
+                    } else if (fighter.weightClass === 'Lightweight') {
+                        lightweightTable.appendChild(row);
+                    } else if (fighter.weightClass === 'Heavyweight') {
+                        heavyweightTable.appendChild(row);
+                    }
+                });
+            });
+        }
+
+        // Function to delete a fighter
+        function deleteFighter(id) {
+            db.collection('fighters').doc(id).delete()
+                .then(() => {
+                    alert("Fighter deleted successfully!");
+                    renderFighters();
+                })
+                .catch((error) => {
+                    console.error("Error deleting fighter: ", error);
+                });
+        }
+
+        // Function to populate fighter options for fights
+        function populateFighterOptions() {
+            const fighter1Select = document.getElementById('fighter1');
+            const fighter2Select = document.getElementById('fighter2');
+            fighter1Select.innerHTML = '';
+            fighter2Select.innerHTML = '';
+
+            db.collection('fighters').get().then((querySnapshot) => {
+                querySnapshot.forEach((doc) => {
+                    const fighter = doc.data();
+                    const option = document.createElement('option');
+                    option.value = doc.id;
+                    option.textContent = fighter.name;
+                    fighter1Select.appendChild(option);
+                    fighter2Select.appendChild(option.cloneNode(true));
+                });
+            });
+        }
+
+        // Function to add fight night event
+        function addFightNight() {
+            const week = document.getElementById('eventWeek').value;
+            const fighter1Id = document.getElementById('fighter1').value;
+            const fighter2Id = document.getElementById('fighter2').value;
+
+            const fightNight = {
+                week,
+                fighter1Id,
+                fighter2Id
+            };
+
+            db.collection('fightNights').add(fightNight)
+                .then(() => {
+                    alert("Fight night added successfully!");
+                    renderFightNights();
+                })
+                .catch((error) => {
+                    console.error("Error adding fight night: ", error);
+                });
+        }
+
+        // Function to render fight nights
+        function renderFightNights() {
+            const fightNightList = document.getElementById('fightNightList');
+            fightNightList.innerHTML = '';
+
+            db.collection('fightNights').get().then((querySnapshot) => {
+                querySnapshot.forEach((doc) => {
+                    const fightNight = doc.data();
+                    const row = document.createElement('div');
+                    row.innerHTML = `<strong>${fightNight.week}</strong>: ${fightNight.fighter1Id} vs ${fightNight.fighter2Id}`;
+                    fightNightList.appendChild(row);
+                });
+            });
+        }
+    </script>
+</body>
+</html>
